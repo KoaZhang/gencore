@@ -228,15 +228,17 @@ void Gencore::processClusterWorkItems(vector<ClusterWorkItem>& workItems) {
         return;
     }
 
-    // Keep worker threads alive across flush cycles. Results are still consumed
-    // on the main thread in submission order so BAM output ordering and global
-    // stats merging remain deterministic.
+    // Keep worker threads alive across flush cycles. Results are consumed on
+    // completion order to avoid a large early cluster blocking later finished
+    // work from being merged and freeing worker-side pressure.
     for(size_t i=0; i<workItems.size(); i++) {
         mThreadPool->submit(workItems[i]);
     }
     for(size_t i=0; i<workItems.size(); i++) {
         ClusterProcessResult result = mThreadPool->take();
         applyClusterResult(result);
+    }
+    for(size_t i=0; i<workItems.size(); i++) {
         delete workItems[i].cluster;
         workItems[i].cluster = NULL;
     }

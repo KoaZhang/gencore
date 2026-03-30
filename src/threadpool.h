@@ -2,7 +2,6 @@
 #define THREADPOOL_H
 
 #include <queue>
-#include <map>
 #include <string>
 #include <utility>
 #include <vector>
@@ -33,8 +32,8 @@ public:
 private:
     TaskProcessor<TTask, TResult>* mProcessor;
     vector<thread> mWorkers;
-    queue<pair<size_t, TTask> > mTaskQueue;
-    map<size_t, TResult> mReadyResults;
+    queue<TTask> mTaskQueue;
+    queue<TResult> mReadyResults;
     mutex mMutex;
     condition_variable mTaskCv;
     condition_variable mResultCv;
@@ -42,8 +41,6 @@ private:
     bool mStopping;
     bool mFailed;
     string mError;
-    size_t mNextTaskId;
-    size_t mNextResultId;
     size_t mPendingTasks;
 
     void workerLoop();
@@ -54,8 +51,6 @@ ThreadPool<TTask, TResult>::ThreadPool(int threadCount, TaskProcessor<TTask, TRe
     mProcessor = processor;
     mStopping = false;
     mFailed = false;
-    mNextTaskId = 0;
-    mNextResultId = 0;
     mPendingTasks = 0;
 
     for(int i=0; i<threadCount; i++) {
@@ -86,8 +81,7 @@ void ThreadPool<TTask, TResult>::submit(const TTask& task) {
     if(mFailed)
         throw runtime_error(mError);
 
-    mTaskQueue.push(make_pair(mNextTaskId, task));
-    mNextTaskId++;
+    mTaskQueue.push(task);
     mPendingTasks++;
     mTaskCv.notify_one();
 }
@@ -99,11 +93,9 @@ TResult ThreadPool<TTask, TResult>::take() {
         if(mFailed)
             throw runtime_error(mError);
 
-        typename map<size_t, TResult>::iterator ready = mReadyResults.find(mNextResultId);
-        if(ready != mReadyResults.end()) {
-            TResult result = ready->second;
-            mReadyResults.erase(ready);
-            mNextResultId++;
+        if(!mReadyResults.empty()) {
+            TResult result = mReadyResults.front();
+            mReadyResults.pop();
             return result;
         }
 
@@ -124,7 +116,7 @@ void ThreadPool<TTask, TResult>::waitUntilDone() {
 template<typename TTask, typename TResult>
 void ThreadPool<TTask, TResult>::workerLoop() {
     while(true) {
-        pair<size_t, TTask> taskItem;
+        TTask taskItem;
         {
             unique_lock<mutex> lock(mMutex);
             while(!mStopping && !mFailed && mTaskQueue.empty()) {
@@ -139,7 +131,7 @@ void ThreadPool<TTask, TResult>::workerLoop() {
 
         TResult result;
         try {
-            result = mProcessor->process(taskItem.second);
+            result = mProcessor->process(taskItem);
         } catch(const exception& e) {
             unique_lock<mutex> lock(mMutex);
             mFailed = true;
@@ -160,7 +152,7 @@ void ThreadPool<TTask, TResult>::workerLoop() {
 
         {
             unique_lock<mutex> lock(mMutex);
-            mReadyResults[taskItem.first] = result;
+            mReadyResults.push(result);
             mPendingTasks--;
             if(mPendingTasks == 0)
                 mIdleCv.notify_all();

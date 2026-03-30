@@ -36,7 +36,7 @@ const unsigned char* Reference::getData(int bamContig, int pos, int len) {
 
     // get contig name from bam header
     string contigName(mOptions->bamHeader->target_name[bamContig]);
-    map<string, const unsigned char*>::const_iterator contigIter = mRef->mAllContigs.find(contigName);
+    map<string, unsigned char*>::const_iterator contigIter = mRef->mAllContigs.find(contigName);
     map<string, long>::const_iterator sizeIter = mRef->mAllContigSizes.find(contigName);
 
     if(contigIter == mRef->mAllContigs.end() || sizeIter == mRef->mAllContigSizes.end()) {

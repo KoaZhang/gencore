@@ -13,6 +13,14 @@
 
 using namespace std;
 
+struct ClusterProcessResult{
+    ClusterProcessResult() {}
+
+    vector<Pair*> consensusPairs;
+    StatsDelta preStatsDelta;
+    StatsDelta postStatsDelta;
+};
+
 class Cluster {
 public:
     Cluster(Options* opt);
@@ -23,7 +31,7 @@ public:
     void addRead(bam1_t* b);
 
     bool matches(Pair* p);
-    vector<Pair*> clusterByUMI(int umiDiffThreshold, Stats* preStats, Stats* postStats, bool crossContig);
+    ClusterProcessResult clusterByUMI(int umiDiffThreshold, bool crossContig);
 
 
     int getLeftRef(){return mPairs[0]->getLeftRef();}

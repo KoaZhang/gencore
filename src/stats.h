@@ -14,6 +14,24 @@
 
 #define MAX_SUPPORTING_READS 100
 
+struct StatsDelta{
+    StatsDelta();
+    void addMolecule(unsigned int supportingReads, bool PE);
+    void addCluster(bool hasMultiMolecule);
+    void addSSCS();
+    void addDCS();
+
+    long mCluster;
+    long mMultiMoleculeCluster;
+    long mMolecule;
+    long mMoleculeSE;
+    long mMoleculePE;
+    long mSupportingHistgram[MAX_SUPPORTING_READS];
+    long uncountedSupportingReads;
+    long mSSCSNum;
+    long mDCSNum;
+};
+
 class Stats{
 public:
     Stats(Options* opt);
@@ -37,6 +55,7 @@ public:
     void setPostStats(bool flag);
     void addSSCS();
     void addDCS();
+    void merge(const StatsDelta& delta);
 
 public:    
 	static string list2string(double* list, int size);

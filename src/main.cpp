@@ -48,6 +48,7 @@ int main(int argc, char* argv[]){
     cmd.add<int>("moderate_qual", 0, "the threshold for a quality score to be considered as moderate quality. Default 20 means Q20.", false, 20);
     cmd.add<int>("low_qual", 0, "the threshold for a quality score to be considered as low quality. Default 15 means Q15.", false, 15);
     cmd.add<int>("coverage_sampling", 0, "the sampling rate for genome scale coverage statistics. Default 10000 means 1/10000.", false, 10000);
+    cmd.add<int>("threads", 't', "number of worker threads used for cluster consensus processing. Default 1 keeps legacy single-thread behavior.", false, 1);
 
     // reporting
     cmd.add<string>("json", 'j', "the json format report file name", false, "gencore.json");
@@ -73,6 +74,7 @@ int main(int argc, char* argv[]){
     opt.moderateQuality = cmd.get<int>("moderate_qual");
     opt.lowQuality = cmd.get<int>("low_qual");
     opt.coverageStep = cmd.get<int>("coverage_sampling");
+    opt.threadNumber = cmd.get<int>("threads");
     opt.properReadsUmiDiffThreshold = cmd.get<int>("umi_diff_threshold");
     opt.duplexMismatchThreshold = cmd.get<int>("duplex_diff_threshold");
     opt.debug = cmd.exist("debug");

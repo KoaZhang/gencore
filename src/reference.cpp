@@ -1,5 +1,6 @@
 #include "reference.h"
 #include "util.h"
+#include <atomic>
 
 Reference* Reference::mInstance = NULL;
 
@@ -17,9 +18,6 @@ Reference::Reference(Options* opt) {
         mRef = new FastaReader(mOptions, mOptions->refFile);
         mRef->readAll();
     }
-    mLastBamContig = -1;
-    mLastData = NULL;
-    mLastLen = -1;
 }
 
 Reference::~Reference() {
@@ -36,36 +34,24 @@ const unsigned char* Reference::getData(int bamContig, int pos, int len) {
     if(mOptions->bamHeader == NULL)
         return NULL;
 
-    if(mLastBamContig == bamContig && mLastData!=NULL) {
-        if(pos + len >= mLastLen)
-            return NULL;
-        else
-            return mLastData;
-    }
-
     // get contig name from bam header
     string contigName(mOptions->bamHeader->target_name[bamContig]);
+    map<string, const unsigned char*>::const_iterator contigIter = mRef->mAllContigs.find(contigName);
+    map<string, long>::const_iterator sizeIter = mRef->mAllContigSizes.find(contigName);
 
-    mLastBamContig = bamContig;
-
-    if(mRef->mAllContigs.count(contigName) == 0) {
-        static bool reported = false;
-        if(!reported)
+    if(contigIter == mRef->mAllContigs.end() || sizeIter == mRef->mAllContigSizes.end()) {
+        static atomic<bool> reported(false);
+        if(!reported.exchange(true))
             cerr << "contig " << contigName << " not found in the reference, please make sure your reference is correct" << endl;
-        reported = true;
-        mLastData = NULL;
         return NULL;
     }
 
-    if(pos + len >= mRef->mAllContigSizes[contigName]){
-        static bool reported = false;
-        if(!reported)
+    if(pos + len >= sizeIter->second){
+        static atomic<bool> reported(false);
+        if(!reported.exchange(true))
             cerr << "contig " << contigName << " doesn't match the length in the reference, please make sure your reference is correct" << endl;
-        mLastData = NULL;
         return NULL;
     }
 
-    mLastData = mRef->mAllContigs[contigName];
-    mLastLen = mRef->mAllContigSizes[contigName];
-    return mLastData;
+    return contigIter->second;
 }

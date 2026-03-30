@@ -12,7 +12,9 @@
 #include "htslib/sam.h"
 #include <map>
 #include <set>
+#include <vector>
 #include "bamutil.h"
+#include "threadpool.h"
 
 using namespace std;
 
@@ -54,6 +56,17 @@ public:
     void consensus();
 
 private:
+    struct ClusterWorkItem{
+        Cluster* cluster;
+        int umiDiffThreshold;
+        bool crossContig;
+    };
+
+    class ClusterProcessor: public TaskProcessor<ClusterWorkItem, ClusterProcessResult> {
+    public:
+        ClusterProcessResult process(const ClusterWorkItem& task);
+    };
+
 	void releaseClusters(map<int, map<int, map<long, Cluster*>>>& clusters);
 	void dumpClusters(map<int, map<int, map<long, Cluster*>>>& clusters);
 	void addToCluster(bam1_t* b);
@@ -67,6 +80,8 @@ private:
     void outputBam(bam1_t* b, bool isLeft);
     void outputOutSet();
     void writeBam(bam1_t* b);
+    void processClusterWorkItems(vector<ClusterWorkItem>& workItems);
+    void applyClusterResult(ClusterProcessResult& result);
 
 private:
     string mInput;
@@ -84,6 +99,8 @@ private:
     int mProcessedTid;
     int mProcessedPos;
     bool mProperClustersFinished;
+    ClusterProcessor mClusterProcessor;
+    ThreadPool<ClusterWorkItem, ClusterProcessResult>* mThreadPool;
 };
 
 #endif

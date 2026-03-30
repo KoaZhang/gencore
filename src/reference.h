@@ -25,9 +25,6 @@ private:
     FastaReader* mRef;
     static Reference* mInstance;
     Options* mOptions;
-    int mLastBamContig;
-    int mLastLen;
-    const unsigned char* mLastData;
 };
 
 

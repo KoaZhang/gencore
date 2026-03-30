@@ -4,6 +4,10 @@
 #include "htmlreporter.h"
 #include <limits.h>
 
+ClusterProcessResult Gencore::ClusterProcessor::process(const ClusterWorkItem& task) {
+    return task.cluster->clusterByUMI(task.umiDiffThreshold, task.crossContig);
+}
+
 Gencore::Gencore(Options *opt){
     mOptions = opt;
     mBamHeader = NULL;
@@ -16,6 +20,10 @@ Gencore::Gencore(Options *opt){
     mProcessedTid = -1;
     mProcessedPos = -1;
     mProperClustersFinished = false;
+    mThreadPool = NULL;
+    if(mOptions->threadNumber > 1) {
+        mThreadPool = new ThreadPool<ClusterWorkItem, ClusterProcessResult>(mOptions->threadNumber, &mClusterProcessor);
+    }
 }
 
 Gencore::~Gencore(){
@@ -34,6 +42,10 @@ Gencore::~Gencore(){
     }
     delete mPreStats;
     delete mPostStats;
+    if(mThreadPool != NULL) {
+        delete mThreadPool;
+        mThreadPool = NULL;
+    }
 }
 
 void Gencore::report() {
@@ -156,6 +168,43 @@ void Gencore::outputPair(Pair* p) {
         outputBam(p->mRight, false);
         // right bam will be put in the mOutSet, so make it NULL to avoid being deleted
         p->mRight =  NULL;
+    }
+}
+
+void Gencore::applyClusterResult(ClusterProcessResult& result) {
+    mPreStats->merge(result.preStatsDelta);
+    mPostStats->merge(result.postStatsDelta);
+    for(int i=0; i<result.consensusPairs.size(); i++) {
+        outputPair(result.consensusPairs[i]);
+        delete result.consensusPairs[i];
+    }
+}
+
+void Gencore::processClusterWorkItems(vector<ClusterWorkItem>& workItems) {
+    if(workItems.empty())
+        return;
+
+    if(mThreadPool == NULL || workItems.size() == 1) {
+        for(size_t i=0; i<workItems.size(); i++) {
+            ClusterProcessResult result = workItems[i].cluster->clusterByUMI(workItems[i].umiDiffThreshold, workItems[i].crossContig);
+            applyClusterResult(result);
+            delete workItems[i].cluster;
+            workItems[i].cluster = NULL;
+        }
+        return;
+    }
+
+    // Keep worker threads alive across flush cycles. Results are still consumed
+    // on the main thread in submission order so BAM output ordering and global
+    // stats merging remain deterministic.
+    for(size_t i=0; i<workItems.size(); i++) {
+        mThreadPool->submit(workItems[i]);
+    }
+    for(size_t i=0; i<workItems.size(); i++) {
+        ClusterProcessResult result = mThreadPool->take();
+        applyClusterResult(result);
+        delete workItems[i].cluster;
+        workItems[i].cluster = NULL;
     }
 }
 
@@ -326,6 +375,7 @@ void Gencore::addToProperCluster(bam1_t* b) {
     map<int, map<long, Cluster*>>::iterator iter2;
     map<long, Cluster*>::iterator iter3;
     bool needBreak = false;
+    vector<ClusterWorkItem> workItems;
     // to mark the smallest tid in the set
     int curProcessedTid = INT_MAX;
     int curProcessedPos = -1;
@@ -352,14 +402,12 @@ void Gencore::addToProperCluster(bam1_t* b) {
                 if(iter1->first == tid && iter3->first >= b->core.pos) {
                     break;
                 }
-                vector<Pair*> csPairs = iter3->second->clusterByUMI(mOptions->properReadsUmiDiffThreshold, mPreStats, mPostStats, iter3->first < 0);
-                for(int i=0; i<csPairs.size(); i++) {
-                    //csPairs[i]->dump();
-                    outputPair(csPairs[i]);
-                    delete csPairs[i];
-                }
+                ClusterWorkItem item;
+                item.cluster = iter3->second;
+                item.umiDiffThreshold = mOptions->properReadsUmiDiffThreshold;
+                item.crossContig = iter3->first < 0;
+                workItems.push_back(item);
                 // this tid:left:right is done
-                delete iter3->second;
                 iter3 = iter2->second.erase(iter3);
             }
             // this tid:left is done
@@ -387,6 +435,7 @@ void Gencore::addToProperCluster(bam1_t* b) {
         mProcessedTid = curProcessedTid;
         mProcessedPos = curProcessedPos;
     }
+    processClusterWorkItems(workItems);
 }
 
 void Gencore::finishConsensus(map<int, map<int, map<long, Cluster*>>>& clusters) {
@@ -394,6 +443,7 @@ void Gencore::finishConsensus(map<int, map<int, map<long, Cluster*>>>& clusters)
     map<int, map<int, map<long, Cluster*>>>::iterator iter1;
     map<int, map<long, Cluster*>>::iterator iter2;
     map<long, Cluster*>::iterator iter3;
+    vector<ClusterWorkItem> workItems;
     for(iter1 = clusters.begin(); iter1 != clusters.end();) {
         for(iter2 = iter1->second.begin(); iter2 != iter1->second.end(); ) {
             for(iter3 = iter2->second.begin(); iter3 != iter2->second.end(); ) {
@@ -404,17 +454,18 @@ void Gencore::finishConsensus(map<int, map<int, map<long, Cluster*>>>& clusters)
                         //csPairs[i]->dump();
                         outputPair(iterOfPairs->second);
                         delete iterOfPairs->second;
+                        iterOfPairs->second = NULL;
                     }
+                    iter3->second->mPairs.clear();
+                    delete iter3->second;
                 } else {
-                    vector<Pair*> csPairs = iter3->second->clusterByUMI(mOptions->unproperReadsUmiDiffThreshold, mPreStats, mPostStats, iter3->first < 0);
-                    for(int i=0; i<csPairs.size(); i++) {
-                        //csPairs[i]->dump();
-                        outputPair(csPairs[i]);
-                        delete csPairs[i];
-                    }
+                    ClusterWorkItem item;
+                    item.cluster = iter3->second;
+                    item.umiDiffThreshold = mOptions->unproperReadsUmiDiffThreshold;
+                    item.crossContig = iter3->first < 0;
+                    workItems.push_back(item);
                 }
                 // this tid:left:right is done
-                delete iter3->second;
                 iter3 = iter2->second.erase(iter3);
             }
             // this tid:left is done
@@ -431,6 +482,7 @@ void Gencore::finishConsensus(map<int, map<int, map<long, Cluster*>>>& clusters)
             iter1++;
         }
     }
+    processClusterWorkItems(workItems);
 }
 
 void Gencore::addToUnProperCluster(bam1_t* b) {

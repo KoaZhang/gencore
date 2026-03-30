@@ -8,6 +8,7 @@ Options::Options(){
     bedFile = "";
     umiPrefix = "";
     maxContig = 0;
+    threadNumber = 1;
     bamHeader = NULL;
     properReadsUmiDiffThreshold = 1;
     unproperReadsUmiDiffThreshold = 0;
@@ -105,6 +106,10 @@ bool Options::validate() {
         error_exit("duplex_diff_threshold cannot be greater than 10, suggest 2.");
     } else if(duplexMismatchThreshold < 0) {
         error_exit("duplex_diff_threshold cannot be less than 0, suggest 2.");
+    }
+
+    if(threadNumber < 1) {
+        error_exit("threads cannot be less than 1");
     }
 
     return true;

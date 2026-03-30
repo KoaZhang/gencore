@@ -5,6 +5,44 @@
 #include "bamutil.h"
 #include <math.h>
 
+StatsDelta::StatsDelta() {
+    mCluster = 0;
+    mMultiMoleculeCluster = 0;
+    mMolecule = 0;
+    mMoleculeSE = 0;
+    mMoleculePE = 0;
+    uncountedSupportingReads = 0;
+    mSSCSNum = 0;
+    mDCSNum = 0;
+    memset(mSupportingHistgram, 0, sizeof(mSupportingHistgram));
+}
+
+void StatsDelta::addMolecule(unsigned int supportingReads, bool PE) {
+    mMolecule++;
+    if(supportingReads < MAX_SUPPORTING_READS)
+        mSupportingHistgram[supportingReads]++;
+    else
+        uncountedSupportingReads++;
+    if(PE)
+        mMoleculePE++;
+    else
+        mMoleculeSE++;
+}
+
+void StatsDelta::addCluster(bool hasMultiMolecule) {
+    mCluster++;
+    if(hasMultiMolecule)
+        mMultiMoleculeCluster++;
+}
+
+void StatsDelta::addSSCS() {
+    mSSCSNum++;
+}
+
+void StatsDelta::addDCS() {
+    mDCSNum++;
+}
+
 
 Stats::Stats(Options* opt) {
 	memset(this, 0, sizeof(Stats));
@@ -34,6 +72,20 @@ void Stats::addSSCS() {
 
 void Stats::addDCS() {
 	mDCSNum++;
+}
+
+void Stats::merge(const StatsDelta& delta) {
+    mCluster += delta.mCluster;
+    mMultiMoleculeCluster += delta.mMultiMoleculeCluster;
+    mMolecule += delta.mMolecule;
+    mMoleculeSE += delta.mMoleculeSE;
+    mMoleculePE += delta.mMoleculePE;
+    uncountedSupportingReads += delta.uncountedSupportingReads;
+    mSSCSNum += delta.mSSCSNum;
+    mDCSNum += delta.mDCSNum;
+    for(int i=0; i<MAX_SUPPORTING_READS; i++) {
+        mSupportingHistgram[i] += delta.mSupportingHistgram[i];
+    }
 }
 
 void Stats::makeGenomeDepthBuf() {

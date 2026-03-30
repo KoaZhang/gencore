@@ -81,7 +81,10 @@ private:
     void outputOutSet();
     void writeBam(bam1_t* b);
     void processClusterWorkItems(vector<ClusterWorkItem>& workItems);
+    void enqueueClusterWorkItems(vector<ClusterWorkItem>& workItems);
+    void flushPendingClusterWorkItems(bool force);
     void applyClusterResult(ClusterProcessResult& result);
+    size_t getClusterBatchSize() const;
 
 private:
     string mInput;
@@ -99,6 +102,7 @@ private:
     int mProcessedTid;
     int mProcessedPos;
     bool mProperClustersFinished;
+    vector<ClusterWorkItem> mPendingClusterWorkItems;
     ClusterProcessor mClusterProcessor;
     ThreadPool<ClusterWorkItem, ClusterProcessResult>* mThreadPool;
 };

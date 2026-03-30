@@ -8,6 +8,18 @@ ClusterProcessResult Gencore::ClusterProcessor::process(const ClusterWorkItem& t
     return task.cluster->clusterByUMI(task.umiDiffThreshold, task.crossContig);
 }
 
+size_t Gencore::getClusterBatchSize() const {
+    if(mThreadPool == NULL)
+        return 1;
+
+    // Keep enough closed clusters queued to amortize scheduling overhead and
+    // give many-core machines a better chance to keep workers busy.
+    size_t batchSize = (size_t)mOptions->threadNumber * 8;
+    if(batchSize < 64)
+        batchSize = 64;
+    return batchSize;
+}
+
 Gencore::Gencore(Options *opt){
     mOptions = opt;
     mBamHeader = NULL;
@@ -178,6 +190,28 @@ void Gencore::applyClusterResult(ClusterProcessResult& result) {
         outputPair(result.consensusPairs[i]);
         delete result.consensusPairs[i];
     }
+}
+
+void Gencore::enqueueClusterWorkItems(vector<ClusterWorkItem>& workItems) {
+    if(workItems.empty())
+        return;
+
+    mPendingClusterWorkItems.insert(mPendingClusterWorkItems.end(), workItems.begin(), workItems.end());
+    workItems.clear();
+    flushPendingClusterWorkItems(false);
+}
+
+void Gencore::flushPendingClusterWorkItems(bool force) {
+    if(mPendingClusterWorkItems.empty())
+        return;
+
+    if(!force && mThreadPool != NULL && mPendingClusterWorkItems.size() < getClusterBatchSize()) {
+        return;
+    }
+
+    vector<ClusterWorkItem> workItems;
+    workItems.swap(mPendingClusterWorkItems);
+    processClusterWorkItems(workItems);
 }
 
 void Gencore::processClusterWorkItems(vector<ClusterWorkItem>& workItems) {
@@ -435,7 +469,7 @@ void Gencore::addToProperCluster(bam1_t* b) {
         mProcessedTid = curProcessedTid;
         mProcessedPos = curProcessedPos;
     }
-    processClusterWorkItems(workItems);
+    enqueueClusterWorkItems(workItems);
 }
 
 void Gencore::finishConsensus(map<int, map<int, map<long, Cluster*>>>& clusters) {
@@ -482,7 +516,8 @@ void Gencore::finishConsensus(map<int, map<int, map<long, Cluster*>>>& clusters)
             iter1++;
         }
     }
-    processClusterWorkItems(workItems);
+    enqueueClusterWorkItems(workItems);
+    flushPendingClusterWorkItems(true);
 }
 
 void Gencore::addToUnProperCluster(bam1_t* b) {

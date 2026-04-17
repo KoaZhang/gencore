@@ -1,4 +1,4 @@
-DIR_INC = ./inc
+DIR_INC = ./src
 DIR_SRC = ./src
 DIR_OBJ = ./obj
 BINDIR=/usr/local/bin
@@ -11,10 +11,10 @@ TARGET = gencore
 BIN_TARGET = ${TARGET}
 
 CC = g++
-CFLAGS = -std=c++11 -g -I${DIR_INC}
+CFLAGS = -std=c++11 -g -I${DIR_INC} -I/usr/local/include -pthread
 
 ${BIN_TARGET}:${OBJ}
-	$(CC) $(OBJ) -L. -lhts -lz -lpthread -o $@
+	$(CC) $(OBJ) -L/usr/local/lib -lhts -lz -lpthread -o $@
     
 ${DIR_OBJ}/%.o:${DIR_SRC}/%.cpp make_obj_dir
 	$(CC) $(CFLAGS) -O3 -c $< -o $@

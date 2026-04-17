@@ -36,24 +36,13 @@ const unsigned char* Reference::getData(int bamContig, int pos, int len) {
     if(mOptions->bamHeader == NULL)
         return NULL;
 
-    if(mLastBamContig == bamContig && mLastData!=NULL) {
-        if(pos + len >= mLastLen)
-            return NULL;
-        else
-            return mLastData;
-    }
-
-    // get contig name from bam header
     string contigName(mOptions->bamHeader->target_name[bamContig]);
-
-    mLastBamContig = bamContig;
 
     if(mRef->mAllContigs.count(contigName) == 0) {
         static bool reported = false;
         if(!reported)
             cerr << "contig " << contigName << " not found in the reference, please make sure your reference is correct" << endl;
         reported = true;
-        mLastData = NULL;
         return NULL;
     }
 
@@ -61,11 +50,8 @@ const unsigned char* Reference::getData(int bamContig, int pos, int len) {
         static bool reported = false;
         if(!reported)
             cerr << "contig " << contigName << " doesn't match the length in the reference, please make sure your reference is correct" << endl;
-        mLastData = NULL;
         return NULL;
     }
 
-    mLastData = mRef->mAllContigs[contigName];
-    mLastLen = mRef->mAllContigSizes[contigName];
-    return mLastData;
+    return mRef->mAllContigs[contigName];
 }

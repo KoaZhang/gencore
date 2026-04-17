@@ -9,6 +9,7 @@
 #include "htslib/sam.h"
 #include <vector>
 #include <map>
+#include <unordered_map>
 #include "stats.h"
 
 using namespace std;
@@ -43,7 +44,7 @@ private:
     static bool isDuplex(const string& umi1, const string& umi2);
     
 public:
-    map<string, Pair*> mPairs;
+    unordered_map<string, Pair*> mPairs;
     Options* mOptions;
 };
 

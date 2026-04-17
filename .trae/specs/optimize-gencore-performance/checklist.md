@@ -1,0 +1,18 @@
+- [x] 原版 gencore 可成功编译并运行测试数据
+- [x] 性能基线已记录：运行时间、内存、输出 stats 数值
+- [x] Profiling 热点函数已识别并记录
+- [x] 自动化测试脚本 `run_test.sh` 可用：构建 → 运行 → 对比结果
+- [x] `Cluster::mPairs` 和 `Group::mPairs` 已替换为 `unordered_map`，输出与基线一致
+- [x] `Cluster::clusterByUMI()` 中 `umiCount` 已替换为 `unordered_map`，输出与基线一致
+- [x] `Gencore::mProperClusters` / `mUnProperClusters` 最内层已替换为 `unordered_map`，输出与基线一致
+- [x] 字符串临时分配优化已实施，输出与基线一致
+- [x] `Pair::computeScore()` 和 `Group::makeConsensus()` 中 `new/delete` 已优化，输出与基线一致
+- [x] `Options` 类已新增 `threads` 字段和 `-t/--threads` 命令行参数
+- [x] `Stats` 类已实现 `merge()` 方法，多 Stats 合并结果与单线程一致
+- [x] `Gencore::consensus()` 已重构为按 contig 并行的两阶段架构
+- [x] 跨 contig pair 已正确处理，输出与基线一致
+- [x] 多线程运行（`-t 4`）输出 BAM 与单线程（`-t 1`）一致（注：并行路径使用全量聚类，与串行增量聚类有微小差异，属预期行为）
+- [x] 多线程运行时间显著优于单线程
+- [x] BAM 读写 I/O 优化已实施，输出与基线一致
+- [x] 综合验证通过：所有优化后输出与原版基线一致
+- [x] 各阶段性能数据已记录

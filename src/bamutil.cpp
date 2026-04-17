@@ -1,7 +1,7 @@
 #include "bamutil.h"
-#include <sstream>
 #include <vector>
 #include <memory.h>
+#include <cstdio>
 
 BamUtil::BamUtil(){
 }
@@ -191,14 +191,17 @@ uint8_t BamUtil::base2fourbits(char base) {
 string BamUtil::getCigar(const bam1_t *b) {
     uint32_t *data = (uint32_t *)bam_get_cigar(b);
     int cigarNum = b->core.n_cigar;
-    stringstream ss;
+    string result;
+    result.reserve(cigarNum * 8);
     for(int i=0; i<cigarNum; i++) {
         uint32_t val = data[i];
         char op = bam_cigar_opchr(val);
         uint32_t len = bam_cigar_oplen(val);
-        ss << op << len;
+        char buf[16];
+        snprintf(buf, sizeof(buf), "%c%u", op, len);
+        result += buf;
     }
-    return ss.str();
+    return result;
 }
 
 bool BamUtil::isPartOf(bam1_t *part, bam1_t *whole, bool isLeft) {

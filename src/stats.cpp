@@ -28,8 +28,43 @@ void Stats::setPostStats(bool flag) {
 	mIsPostStats = flag;
 }
 
+void Stats::merge(Stats* other) {
+    if(other == NULL) return;
+    mReadWithMismatches += other->mReadWithMismatches;
+    mCluster += other->mCluster;
+    mMultiMoleculeCluster += other->mMultiMoleculeCluster;
+    mMolecule += other->mMolecule;
+    mMoleculeSE += other->mMoleculeSE;
+    mMoleculePE += other->mMoleculePE;
+    for(int i=0; i<MAX_SUPPORTING_READS; i++) {
+        mSupportingHistgram[i] += other->mSupportingHistgram[i];
+    }
+    uncountedSupportingReads += other->uncountedSupportingReads;
+    mBase += other->mBase;
+    mBaseMismatches += other->mBaseMismatches;
+    mBaseUnmapped += other->mBaseUnmapped;
+    mRead += other->mRead;
+    mReadUnmapped += other->mReadUnmapped;
+    mSSCSNum += other->mSSCSNum;
+    mDCSNum += other->mDCSNum;
+    // merge genome depth
+    for(int c=0; c<mGenomeDepth.size() && c<other->mGenomeDepth.size(); c++) {
+        for(int p=0; p<mGenomeDepth[c].size() && p<other->mGenomeDepth[c].size(); p++) {
+            mGenomeDepth[c][p] += other->mGenomeDepth[c][p];
+        }
+    }
+    // merge bed stats
+    if(other->mBedStats && mBedStats) {
+        for(int c=0; c<mBedStats->mContigRegions.size() && c<other->mBedStats->mContigRegions.size(); c++) {
+            for(int p=0; p<mBedStats->mContigRegions[c].size() && p<other->mBedStats->mContigRegions[c].size(); p++) {
+                mBedStats->mContigRegions[c][p].mCount += other->mBedStats->mContigRegions[c][p].mCount;
+            }
+        }
+    }
+}
+
 void Stats::addSSCS() {
-	mSSCSNum++;
+    mSSCSNum++;
 }
 
 void Stats::addDCS() {

@@ -9,7 +9,7 @@ Cluster::Cluster(Options* opt){
 }
 
 Cluster::~Cluster(){
-    map<string, Pair*>::iterator iter;
+    unordered_map<string, Pair*>::iterator iter;
     for(iter = mPairs.begin(); iter!=mPairs.end(); iter++) {
         delete iter->second;
     }
@@ -23,14 +23,14 @@ void Cluster::addPair(Pair* p){
 }
 
 void Cluster::dump(){
-    map<string, Pair*>::iterator iter;
+    unordered_map<string, Pair*>::iterator iter;
     for(iter = mPairs.begin(); iter!=mPairs.end(); iter++) {
         iter->second->dump();
     }
 }
 
 bool Cluster::matches(Pair* p){
-    map<string, Pair*>::iterator iter;
+    unordered_map<string, Pair*>::iterator iter;
     for(iter = mPairs.begin(); iter!=mPairs.end(); iter++) {
         if(iter->second->isDupWith(p))
             return true;
@@ -54,9 +54,9 @@ int Cluster::umiDiff(const string& umi1, const string& umi2) {
     
 vector<Pair*> Cluster::clusterByUMI(int umiDiffThreshold, Stats* preStats, Stats* postStats, bool crossContig) {
 	vector<Group*> groups;
-    map<string, int> umiCount;
+    unordered_map<string, int> umiCount;
     bool hasUMI = false;
-    map<string, Pair*>::iterator iterOfPairs;
+    unordered_map<string, Pair*>::iterator iterOfPairs;
     for(iterOfPairs = mPairs.begin(); iterOfPairs!=mPairs.end(); iterOfPairs++) {
         string umi = iterOfPairs->second->getUMI();
         if(!umi.empty())
@@ -67,7 +67,7 @@ vector<Pair*> Cluster::clusterByUMI(int umiDiffThreshold, Stats* preStats, Stats
         // get top UMI
         string topUMI;
         int topCount = 0;
-        map<string, int>::iterator iter;
+        unordered_map<string, int>::iterator iter;
         for(iter = umiCount.begin(); iter!=umiCount.end(); iter++) {
             if(iter->second > topCount) {
                 topCount = iter->second;
@@ -79,7 +79,7 @@ vector<Pair*> Cluster::clusterByUMI(int umiDiffThreshold, Stats* preStats, Stats
         bool isPE = false;
 
 		// create the group by the top UMI
-        map<string, Pair*>::iterator piter;
+        unordered_map<string, Pair*>::iterator piter;
         for(piter = mPairs.begin(); piter!=mPairs.end();){
     		Pair* p = piter->second;
             string umi = p->getUMI();
@@ -260,7 +260,7 @@ bool Cluster::isDuplex(const string& umi1, const string& umi2) {
 void Cluster::addRead(bam1_t* b) {
     // left
     string qname = BamUtil::getQName(b);
-    map<string, Pair*>::iterator iter = mPairs.find(qname);
+    auto iter = mPairs.find(qname);
 
     if(iter!=mPairs.end()) {
         iter->second->setRight(b);

@@ -37,6 +37,7 @@ public:
     void setPostStats(bool flag);
     void addSSCS();
     void addDCS();
+    void merge(Stats* other);
 
 public:    
 	static string list2string(double* list, int size);

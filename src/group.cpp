@@ -2,13 +2,14 @@
 #include "bamutil.h"
 #include "reference.h"
 #include <memory.h>
+#include <vector>
 
 Group::Group(Options* opt){
     mOptions = opt;
 }
 
 Group::~Group(){
-    map<string, Pair*>::iterator iter;
+    unordered_map<string, Pair*>::iterator iter;
     for(iter = mPairs.begin(); iter!=mPairs.end(); iter++) {
         delete iter->second;
     }
@@ -22,14 +23,14 @@ void Group::addPair(Pair* p){
 }
 
 void Group::dump(){
-    map<string, Pair*>::iterator iter;
+    unordered_map<string, Pair*>::iterator iter;
     for(iter = mPairs.begin(); iter!=mPairs.end(); iter++) {
         iter->second->dump();
     }
 }
 
 bool Group::matches(Pair* p){
-    map<string, Pair*>::iterator iter;
+    unordered_map<string, Pair*>::iterator iter;
     for(iter = mPairs.begin(); iter!=mPairs.end(); iter++) {
         if(iter->second->isDupWith(p))
             return true;
@@ -80,7 +81,7 @@ Pair* Group::consensusMerge(bool crossContig) {
     if(crossContig) {
         int curLen = 0;
 
-        map<string, Pair*>::iterator iter;
+        unordered_map<string, Pair*>::iterator iter;
         for(iter=mPairs.begin(); iter!=mPairs.end(); iter++) {
             if(iter->second->mLeft == NULL)
                 continue;
@@ -135,7 +136,7 @@ Pair* Group::consensusMerge(bool crossContig) {
 
 bam1_t* Group::consensusMergeBam(bool isLeft, int& diff) {
     vector<Pair*> allPairs;
-    map<string, Pair*>::iterator iterOfPairs;
+    unordered_map<string, Pair*>::iterator iterOfPairs;
     for(iterOfPairs = mPairs.begin(); iterOfPairs!=mPairs.end(); iterOfPairs++) {
         allPairs.push_back(iterOfPairs->second);
     }
@@ -327,8 +328,10 @@ int Group::makeConsensus(vector<bam1_t* >& reads, bam1_t* out, vector<char*>& sc
     // to restore the data if it's needed
     int seqbytes = (out->core.l_qseq+1)>>1;
     int qualbytes = out->core.l_qseq;
-    char* seqBak = new char[seqbytes];
-    char* qualBak = new char[qualbytes];
+    vector<char> seqBakBuf(seqbytes);
+    vector<char> qualBakBuf(qualbytes);
+    char* seqBak = seqBakBuf.data();
+    char* qualBak = qualBakBuf.data();
     memcpy(seqBak, bam_get_seq(out), seqbytes);
     memcpy(qualBak, bam_get_qual(out), qualbytes);
 
@@ -572,16 +575,13 @@ int Group::makeConsensus(vector<bam1_t* >& reads, bam1_t* out, vector<char*>& sc
         }
     }
 
-    delete[] seqBak;
-    delete[] qualBak;
-
     return diff;
 }
 
 void Group::addRead(bam1_t* b) {
     // left
     string qname = BamUtil::getQName(b);
-    map<string, Pair*>::iterator iter = mPairs.find(qname);
+    unordered_map<string, Pair*>::iterator iter = mPairs.find(qname);
 
     if(iter!=mPairs.end()) {
         iter->second->setRight(b);

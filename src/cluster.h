@@ -9,6 +9,7 @@
 #include "htslib/sam.h"
 #include <vector>
 #include <map>
+#include <unordered_map>
 #include "stats.h"
 
 using namespace std;
@@ -42,7 +43,7 @@ private:
     int duplexMergeBam(bam1_t* b1, bam1_t* b2);
     
 public:
-    map<string, Pair*> mPairs;
+    unordered_map<string, Pair*> mPairs;
     Options* mOptions;
 };
 

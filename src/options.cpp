@@ -37,6 +37,7 @@ Options::Options(){
 
     duplexOnly = false;
     disableDuplex = false;
+    threads = 1;
 }
 
 bool Options::validate() {

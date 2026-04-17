@@ -53,6 +53,8 @@ int main(int argc, char* argv[]){
     cmd.add<string>("json", 'j', "the json format report file name", false, "gencore.json");
     cmd.add<string>("html", 'h', "the html format report file name", false, "gencore.html");
 
+    cmd.add<int>("threads", 't', "number of threads for parallel processing. Default is 1 (no parallelization).", false, 1);
+
     // debugging
     cmd.add("debug", 0, "output some debug information to STDERR.");
     cmd.add<int>("quit_after_contig", 0, "stop when <quit_after_contig> contigs are processed. Only used for fast debugging. Default 0 means no limitation.", false, 0);
@@ -80,6 +82,11 @@ int main(int argc, char* argv[]){
     opt.disableDuplex = cmd.exist("no_duplex");
     if(opt.duplexOnly && opt.disableDuplex) {
         error_exit("You cannot enable both duplex_only and no_duplex");
+    }
+
+    opt.threads = cmd.get<int>("threads");
+    if(opt.threads < 1) {
+        error_exit("threads cannot be less than 1");
     }
 
     // reporting

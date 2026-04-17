@@ -58,6 +58,7 @@ public:
 
     bool duplexOnly;
     bool disableDuplex;
+    int threads;
 };
 
 #endif

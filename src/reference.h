@@ -1,13 +1,11 @@
 #ifndef REFERENCE_H
 #define REFERENCE_H
 
-// includes
 #include "fastareader.h"
 #include "options.h"
+#include <mutex>
 
 using namespace std;
-
-// Singleton reference handler
 
 class Reference
 {
@@ -28,8 +26,8 @@ private:
     int mLastBamContig;
     int mLastLen;
     const unsigned char* mLastData;
+    mutex mMtx;
 };
 
 
 #endif
-

@@ -217,7 +217,6 @@ bam1_t* Group::consensusMergeBam(bool isLeft, int& diff) {
             if(whole == NULL)
                 continue;
 
-            // if processing right reads, we should align by the right ref pos
             if(!isLeft) {
                 if(BamUtil::getRightRefPos(part) != BamUtil::getRightRefPos(whole)) {
                     continue;

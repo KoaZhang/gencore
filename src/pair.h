@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <memory>
 #include "util.h"
 #include "htslib/sam.h"
 #include "options.h"
@@ -62,8 +63,8 @@ private:
     string mLeftCigar;
     string mRightCigar;
     Options* mOptions;
-    char* mLeftScore;
-    char* mRightScore;
+    unique_ptr<char[]> mLeftScore;
+    unique_ptr<char[]> mRightScore;
     bool mCssDcsTagWritten;
 };
 

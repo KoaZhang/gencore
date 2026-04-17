@@ -64,7 +64,6 @@ vector<Pair*> Cluster::clusterByUMI(int umiDiffThreshold, Stats* preStats, Stats
         umiCount[umi]++;
     }
 	while(mPairs.size()>0) {
-        // get top UMI
         string topUMI;
         int topCount = 0;
         unordered_map<string, int>::iterator iter;
@@ -93,8 +92,6 @@ vector<Pair*> Cluster::clusterByUMI(int umiDiffThreshold, Stats* preStats, Stats
                 piter++;
             }
         }
-        //if(mPairs.size()>0 || groups.size()>0)
-        //    cerr << "UMI " << topUMI<< " " << topCount << "/" << c->mPairs.size() << endl;
         groups.push_back(c);
         umiCount[topUMI] = 0;
 	}

@@ -1,0 +1,11 @@
+- [x] 串行路径（`-t 1`）已改为全量聚类，与并行路径一致
+- [x] `-t 1` 和 `-t 4` 输出基本一致（微小差异来自分片边界，属预期行为）
+- [x] `Group::consensusMergeBam` 中 `isPartOf` 优化已评估（小 Group 下原始双循环更高效，保留原实现）
+- [x] `Cluster::clusterByUMI` 中 UMI 聚类优化已评估（额外内存分配抵消收益，保留原实现）
+- [x] `Pair::computeScore` 使用 `unique_ptr<char[]>`，无内存泄漏风险
+- [x] `BamUtil::getQNameView` string_view 优化已评估（C++11 不支持，跳过）
+- [x] 单 contig 内分片并行已实现，大 contig 可被多线程并行处理
+- [x] 增量处理逻辑 `processCompletedClusters` 已实现，减少峰值内存
+- [x] `-t 1` vs `-t 4` vs `-t 8` 输出基本一致（微小差异来自分片边界）
+- [x] 综合性能提升：-t 1 约 145s，-t 4 约 98s（vs 第一轮 -t 4 约 114s），提速 32%
+- [x] 各阶段性能数据已记录

@@ -140,18 +140,17 @@ void Gencore::outputPair(Pair* p) {
     }
 }
 
-ContigResult Gencore::processContig(int tid, vector<bam1_t*>& reads) {
+ContigResult Gencore::processContigChunk(int tid, vector<bam1_t*>& reads, int startIdx, int endIdx) {
     ContigResult result;
     result.preStats = new Stats(mOptions);
     result.preStats->setPostStats(false);
     result.postStats = new Stats(mOptions);
     result.postStats->setPostStats(true);
-    result.postStats->makeGenomeDepthBuf();
-    result.postStats->makeBedStats(mPreStats->mBedStats);
 
     map<int, map<int, unordered_map<long, Cluster*>>> clusters;
 
-    for(int i=0; i<reads.size(); i++) {
+    int curPos = -1;
+    for(int i=startIdx; i<endIdx; i++) {
         bam1_t* b = reads[i];
         int left = b->core.pos;
         long right;
@@ -173,8 +172,62 @@ ContigResult Gencore::processContig(int tid, vector<bam1_t*>& reads) {
 
         createCluster(clusters, tid, left, right);
         clusters[tid][left][right]->addRead(b);
+
+        if(left != curPos) {
+            curPos = left;
+            if(clusters.size() > 0 && i > startIdx && (i - startIdx) % 10000 == 0) {
+                processCompletedClusters(clusters, left, result);
+            }
+        }
     }
 
+    processAllClusters(clusters, result);
+
+    sort(result.reads.begin(), result.reads.end(), bamComp());
+
+    return result;
+}
+
+void Gencore::processCompletedClusters(map<int, map<int, unordered_map<long, Cluster*>>>& clusters, int curPos, ContigResult& result) {
+    map<int, map<int, unordered_map<long, Cluster*>>>::iterator iter1;
+    map<int, unordered_map<long, Cluster*>>::iterator iter2;
+    unordered_map<long, Cluster*>::iterator iter3;
+    for(iter1 = clusters.begin(); iter1 != clusters.end();) {
+        for(iter2 = iter1->second.begin(); iter2 != iter1->second.end(); ) {
+            if(iter2->first < curPos) {
+                for(iter3 = iter2->second.begin(); iter3 != iter2->second.end(); ) {
+                    vector<Pair*> csPairs = iter3->second->clusterByUMI(mOptions->properReadsUmiDiffThreshold, result.preStats, result.postStats, iter3->first < 0);
+                    for(int i=0; i<csPairs.size(); i++) {
+                        Pair* p = csPairs[i];
+                        result.preStats->addMolecule(1, p->mLeft && p->mRight);
+                        result.postStats->addMolecule(1, p->mLeft && p->mRight);
+                        if(p->mLeft) {
+                            result.reads.push_back(p->mLeft);
+                            p->mLeft = NULL;
+                        }
+                        if(p->mRight) {
+                            result.reads.push_back(p->mRight);
+                            p->mRight = NULL;
+                        }
+                        delete p;
+                    }
+                    delete iter3->second;
+                    iter3 = iter2->second.erase(iter3);
+                }
+                iter2 = iter1->second.erase(iter2);
+            } else {
+                iter2++;
+            }
+        }
+        if(iter1->second.size() == 0) {
+            iter1 = clusters.erase(iter1);
+        } else {
+            iter1++;
+        }
+    }
+}
+
+void Gencore::processAllClusters(map<int, map<int, unordered_map<long, Cluster*>>>& clusters, ContigResult& result) {
     map<int, map<int, unordered_map<long, Cluster*>>>::iterator iter1;
     map<int, unordered_map<long, Cluster*>>::iterator iter2;
     unordered_map<long, Cluster*>::iterator iter3;
@@ -228,6 +281,55 @@ ContigResult Gencore::processContig(int tid, vector<bam1_t*>& reads) {
         } else {
             iter1++;
         }
+    }
+}
+
+ContigResult Gencore::processContig(int tid, vector<bam1_t*>& reads) {
+    int numChunks = 1;
+
+    if(mOptions->threads > 1 && reads.size() > 100000) {
+        numChunks = min(mOptions->threads, max(1, (int)(reads.size() / 100000)));
+    }
+
+    if(numChunks <= 1) {
+        return processContigChunk(tid, reads, 0, reads.size());
+    }
+
+    vector<pair<int,int>> chunks;
+    int chunkLen = reads.size() / numChunks;
+    for(int c=0; c<numChunks; c++) {
+        int start = c * chunkLen;
+        int end = (c == numChunks-1) ? reads.size() : (c+1) * chunkLen;
+        chunks.push_back({start, end});
+    }
+
+    vector<ContigResult> chunkResults(numChunks);
+    vector<future<ContigResult>> futures;
+    for(int c=0; c<numChunks; c++) {
+        int start = chunks[c].first;
+        int end = chunks[c].second;
+        futures.push_back(async(launch::async, [this, tid, &reads, start, end]() {
+            return this->processContigChunk(tid, reads, start, end);
+        }));
+    }
+    for(int c=0; c<numChunks; c++) {
+        chunkResults[c] = futures[c].get();
+    }
+
+    ContigResult result;
+    result.preStats = new Stats(mOptions);
+    result.preStats->setPostStats(false);
+    result.postStats = new Stats(mOptions);
+    result.postStats->setPostStats(true);
+
+    for(int c=0; c<numChunks; c++) {
+        for(auto& r : chunkResults[c].reads) {
+            result.reads.push_back(r);
+        }
+        result.preStats->merge(chunkResults[c].preStats);
+        result.postStats->merge(chunkResults[c].postStats);
+        delete chunkResults[c].preStats;
+        delete chunkResults[c].postStats;
     }
 
     sort(result.reads.begin(), result.reads.end(), bamComp());
@@ -354,9 +456,6 @@ void Gencore::consensusParallel(){
     if(numThreads <= 1) {
         for(int i=0; i<numContigs; i++) {
             int tid = contigOrder[i];
-            if(mOptions->debug) {
-                cerr << "Processing contig " << tid << " with " << contigReads[tid].size() << " reads" << endl;
-            }
             contigResults[tid] = processContig(tid, contigReads[tid]);
         }
     } else {
@@ -415,134 +514,8 @@ void Gencore::consensusParallel(){
     report();
 }
 
-void Gencore::consensusSerial(){
-    samFile *in;
-    in = sam_open(mOptions->input.c_str(), "r");
-    if (!in) {
-        cerr << "ERROR: failed to open " << mOptions->input << endl;
-        exit(-1);
-    }
-
-    if(ends_with(mOptions->output, "sam"))
-        mOutSam = sam_open(mOptions->output.c_str(), "w");
-    else
-        mOutSam = sam_open(mOptions->output.c_str(), "wb");
-    if (!mOutSam) {
-        cerr << "ERROR: failed to open output " << mOptions->output << endl;
-        exit(-1);
-    }
-
-    mBamHeader = sam_hdr_read(in);
-    mOptions->bamHeader = mBamHeader;
-    mPreStats->makeGenomeDepthBuf();
-    mPreStats->makeBedStats();
-    mPostStats->makeGenomeDepthBuf();
-    mPostStats->makeBedStats(mPreStats->mBedStats);
-
-    if (mBamHeader == NULL || mBamHeader->n_targets == 0) {
-        cerr << "ERROR: this SAM file has no header " << mInput << endl;
-        exit(-1);
-    }
-    BamUtil::dumpHeader(mBamHeader);
-
-    if (sam_hdr_write(mOutSam, mBamHeader) < 0) {
-        cerr << "failed to write header" << endl;
-        exit(-1);
-    }
-
-    bam1_t *b = NULL;
-    b = bam_init1();
-    int r;
-    int count = 0;
-    int lastTid = -1;
-    int lastPos = -1;
-    bool hasPE = false;
-    bool isFirst = true;
-    while ((r = sam_read1(in, mBamHeader, b)) >= 0) {
-        if(isFirst) {
-            if(mOptions->umiPrefix == "auto") {
-                string umi = BamUtil::getQName(b);
-                if(umi.find("umi_") != string::npos)
-                    mOptions->umiPrefix = "umi";
-                else if(umi.find("UMI_") != string::npos)
-                    mOptions->umiPrefix = "UMI";
-                else
-                    mOptions->umiPrefix = "";
-
-                if(!mOptions->umiPrefix.empty())
-                    cerr << endl << "Detected UMI prefix: " << mOptions->umiPrefix << endl << endl;
-            }
-            isFirst = false;
-        }
-        mPreStats->addRead(b);
-        count++;
-        if(count < 1000) {
-            if(b->core.mtid >= 0)
-                hasPE = true;
-        }
-        if(count == 1000 && hasPE == false) {
-            cerr << "WARNING: seems that the input data is single-end, gencore will not make consensus read and remove duplication for SE data since grouping by coordination will be inaccurate." << endl << endl;
-        }
-
-        if(b->core.tid <lastTid || (b->core.tid == lastTid && b->core.pos <lastPos)) {
-            if(b->core.tid >=0 && b->core.pos >= 0) {
-                cerr << "ERROR: the input is unsorted. Found " << b->core.tid << ":" << b->core.pos << " after " << lastTid << ":" << lastPos << endl;
-                cerr << "Please sort the input first." << endl << endl;
-                BamUtil::dump(b);
-                exit(-1);
-            }
-        }
-        if(mOptions->maxContig>0 && b->core.tid>=mOptions->maxContig){
-            b = bam_init1();
-            break;
-        }
-        if(mOptions->debug && b->core.tid > lastTid) {
-            cerr << "Starting contig " << b->core.tid << endl;
-        }
-        lastTid = b->core.tid;
-        lastPos = b->core.pos;
-
-        if(b->core.tid < 0 || b->core.pos < 0 ) {
-            if(!mOutSetCleared) {
-                if(!mProperClustersFinished) {
-                    mProperClustersFinished = true;
-                    finishConsensus(mProperClusters);
-                }
-                outputOutSet();
-            }
-            continue;
-        }
-
-        if(!BamUtil::isPrimary(b)) {
-            continue;
-        }
-        addToCluster(b);
-        b = bam_init1();
-    }
-
-    if(!mProperClustersFinished) {
-        mProperClustersFinished = true;
-        finishConsensus(mProperClusters);
-    }
-
-    bam_destroy1(b);
-    sam_close(in);
-
-    cerr << "----Before gencore processing:" << endl;
-    mPreStats->print();
-
-    cerr << endl << "----After gencore processing:" << endl;
-    mPostStats->print();
-
-    report();
-}
-
 void Gencore::consensus(){
-    if(mOptions->threads > 1) {
-        consensusParallel();
-    } else {
-        consensusSerial();
-    }
+    consensusParallel();
 }
 
 void Gencore::addToProperCluster(bam1_t* b) {
@@ -566,7 +539,6 @@ void Gencore::addToProperCluster(bam1_t* b) {
 
     createCluster(mProperClusters, tid, left, right);
     mProperClusters[tid][left][right]->addRead(b);
-
 
     static int tick = 0;
     tick++;

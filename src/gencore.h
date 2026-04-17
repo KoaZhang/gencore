@@ -80,8 +80,10 @@ private:
     void writeBam(bam1_t* b);
 
     ContigResult processContig(int tid, vector<bam1_t*>& reads);
+    ContigResult processContigChunk(int tid, vector<bam1_t*>& reads, int startIdx, int endIdx);
+    void processCompletedClusters(map<int, map<int, unordered_map<long, Cluster*>>>& clusters, int curPos, ContigResult& result);
+    void processAllClusters(map<int, map<int, unordered_map<long, Cluster*>>>& clusters, ContigResult& result);
     void consensusParallel();
-    void consensusSerial();
 
 private:
     string mInput;

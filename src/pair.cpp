@@ -5,8 +5,6 @@
 Pair::Pair(Options* opt){
     mLeft = NULL;
     mRight = NULL;
-    mLeftScore = NULL;
-    mRightScore = NULL;
     mMergeReads = 1;
     mReverseMergeReads = 0;
     mMergeLeftDiff = 0;
@@ -25,14 +23,8 @@ Pair::~Pair(){
         bam_destroy1(mRight);
         mRight = NULL;
     }
-    if(mLeftScore) {
-        delete[] mLeftScore;
-        mLeftScore = NULL;
-    }
-    if(mRightScore) {
-        delete[] mRightScore;
-        mRightScore = NULL;
-    }
+    mLeftScore.reset();
+    mRightScore.reset();
 }
 
 void Pair::setDuplex(int mergeReadsOfReverseStrand) {
@@ -87,16 +79,16 @@ char Pair::qual2score(uint8_t q) {
 
 void Pair::computeScore() {
     if(mLeft) {
-        if(mLeftScore == NULL) {
-            mLeftScore = new char[mLeft->core.l_qseq];
-            memset(mLeftScore, mOptions->scoreOfNotOverlappedModerateQual, mLeft->core.l_qseq);
+        if(mLeftScore == nullptr) {
+            mLeftScore = unique_ptr<char[]>(new char[mLeft->core.l_qseq]);
+            memset(mLeftScore.get(), mOptions->scoreOfNotOverlappedModerateQual, mLeft->core.l_qseq);
         }
     }
 
     if(mRight) {
-        if(mRightScore == NULL) {
-            mRightScore = new char[mRight->core.l_qseq];
-            memset(mRightScore, mOptions->scoreOfNotOverlappedModerateQual, mRight->core.l_qseq);
+        if(mRightScore == nullptr) {
+            mRightScore = unique_ptr<char[]>(new char[mRight->core.l_qseq]);
+            memset(mRightScore.get(), mOptions->scoreOfNotOverlappedModerateQual, mRight->core.l_qseq);
         }
     }
 
@@ -122,12 +114,12 @@ void Pair::computeScore() {
             uint8_t* lqual = bam_get_qual(mLeft);
             uint8_t* rqual = bam_get_qual(mRight);
             if(mLeft) {
-                assignNonOverlappedScores(lqual, 0, min(mLeft->core.l_qseq, leftStart), mLeftScore);
-                assignNonOverlappedScores(lqual, max(0, leftStart+cmpLen), mLeft->core.l_qseq, mLeftScore);
+                assignNonOverlappedScores(lqual, 0, min(mLeft->core.l_qseq, leftStart), mLeftScore.get());
+                assignNonOverlappedScores(lqual, max(0, leftStart+cmpLen), mLeft->core.l_qseq, mLeftScore.get());
             }
             if(mRight) {
-                assignNonOverlappedScores(rqual, 0, min(mRight->core.l_qseq, rightStart), mRightScore);
-                assignNonOverlappedScores(rqual, max(0, rightStart+cmpLen), mRight->core.l_qseq, mRightScore);
+                assignNonOverlappedScores(rqual, 0, min(mRight->core.l_qseq, rightStart), mRightScore.get());
+                assignNonOverlappedScores(rqual, max(0, rightStart+cmpLen), mRight->core.l_qseq, mRightScore.get());
             }
             for(int i=0; i<cmpLen; i++) {
                 int l = leftStart + i;
@@ -175,14 +167,14 @@ char* Pair::getLeftScore() {
     if(!mLeftScore)
         computeScore();
     
-    return mLeftScore;
+    return mLeftScore.get();
 }
 
 char* Pair::getRightScore() {
     if(!mRightScore)
         computeScore();
 
-    return mRightScore;
+    return mRightScore.get();
 }
 
 void Pair::setLeft(bam1_t *b) {
